@@ -1,0 +1,94 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# **Which Type of Dwelling in New York City is Most Likely to Have a Deadly Shooting Incident?**
+## Importing and Cleaning Data
+```{r message=FALSE}
+library(tidyverse)
+library(lubridate)
+data <- read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv")
+data$OCCUR_DATE <- mdy(data$OCCUR_DATE)
+data <- data %>% 
+  select(OCCUR_DATE, BORO, LOCATION_DESC, STATISTICAL_MURDER_FLAG) %>% 
+  filter((LOCATION_DESC == "MULTI DWELL - APT BUILD" | LOCATION_DESC == 
+            "MULTI DWELL - PUBLIC HOUS" | LOCATION_DESC == "PVT HOUSE") & 
+           STATISTICAL_MURDER_FLAG == TRUE) %>% 
+  arrange(OCCUR_DATE) %>% 
+  mutate(LOCATION_DESC = recode(LOCATION_DESC, "MULTI DWELL - APT BUILD" = "Apartment Building", 
+                                "MULTI DWELL - PUBLIC HOUS" = "Public Housing", "PVT HOUSE" = 
+                                  "Private Home"))
+data$LOCATION_DESC <- as.factor(data$LOCATION_DESC)
+data$BORO <- as.factor(data$BORO)
+```
+## Summary of Data Used
+```{r}
+head(data)
+tail(data)
+```
+### No Empty Data
+```{r}
+any(is.na(data))
+any(is.null(data))
+```
+## Visualizations and Analysis
+```{r message=FALSE}
+plot1 <- data %>% 
+  select(LOCATION_DESC)
+ggplot(data = plot1,
+       mapping = aes(x = LOCATION_DESC, fill = LOCATION_DESC))+
+  geom_bar(show.legend = FALSE)+
+  labs(x = "Type of Dwelling", y = "Number of Shootings", title = "Fatal Shooting 
+       Incidents in NYC by Dwelling, 2006-2022")+
+  geom_text(stat = "count", aes(label = after_stat(count)), position = 
+              position_stack(vjust = 0.9), size = 4.0)
+```
+
+We can see that Public Housing has the highest number of fatal shootings over the years, with about 45% of the total.
+
+```{r message=FALSE}
+plot2 <- data %>% 
+  select(OCCUR_DATE, LOCATION_DESC) %>% 
+  group_by(year(OCCUR_DATE))
+plot2 <- table(plot2$`year(OCCUR_DATE)`, plot2$LOCATION_DESC)
+plot2 <- data.frame(plot2)
+plot2 <- plot2 %>% 
+  rename(Dwelling_Type = Var2)
+plot2$Var1 <- as.numeric(plot2$Var1) + 2005
+view(plot2)
+ggplot(data = plot2,
+       mapping = aes(x = Var1, y = Freq, color = Dwelling_Type, shape = Dwelling_Type))+
+  geom_point()+
+  geom_smooth(method = lm, se = FALSE)+
+  labs(x = "Year Total", y = "Number of Shootings", title = "Fatal Shooting Incidents in 
+       NYC by Dwelling and Year, 2006-2022")+
+  scale_x_continuous(breaks = round(seq(min(plot2$Var1), max(plot2$Var1), by = 2),1))
+```
+
+From this plot, we can see that while all dwellings for fatal shooting incidents are trending downwards based on the regression lines, fatal shootings in Public Housing started out as less common than Apartment Buildings, but ended up being more common, as fatal shootings in Apartment Buildings decreased more rapidly.
+
+```{r warning=FALSE, message=FALSE}
+plot3 <- data %>% 
+  select(BORO, LOCATION_DESC) %>% 
+  rename(Dwelling_Type = LOCATION_DESC)
+ggplot(data = plot3,
+       aes(x = BORO, fill = Dwelling_Type))+
+  geom_histogram(stat = "count", labels = TRUE)+
+  labs(x = "Borough", y = "Number of Shootings", title = "Fatal Shooting Incidents in NYC by 
+       Borough and Dwelling, 2006-2022")+
+  geom_text(stat = "count", aes(label = after_stat(count)), position = 
+              position_stack(vjust = 0.5), size = 3.0)
+```
+
+We can see from this data that the most common dwelling in which a fatal shooting occurs varies widely based on the borough. Public Housing is only the most common dwelling for a fatal shooting to occur in 2 of the 5 boroughs. Queens and Staten Island have Private Home as the most common dwelling for a fatal shooting despite Private Homes making up only about 16% of the total fatal shootings across the city.
+
+## Additional Questions
+
+### This data would be more conclusive if we knew what proportions of NYC residents lived in the 3 different types of dwellings during the time period the data was taken, so that we could add weight to each type of dwelling. Based on some quick searches, a lot more people live in Apartment Buildings than Public Housing in NYC, which makes it all the more alarming that the most fatal shootings take place in Public Housing across the city.
+
+## Conclusion and Bias
+
+### In conclusion, our data shows that the highest total number of fatal shootings in NYC between 2006 and 2022 occurred in Public Housing rather than Apartment Buildings or Private Homes. In addition, while the overall rates of fatal shootings in dwellings have declined over the years, Public Housing still tends to have the most fatal shootings, and the rates aren't decreasing as much as Apartment Buildings, the second most common. However, when we look at the borough level, the type of dwelling in which the most fatal shootings occur varies much more. Without data for the proportions of NYC residents who live in the different types of dwellings, we cannot say for sure that one is most likely to be fatally shot in Public Housing, but our analysis seems to point towards that being the case.
+
+### My personal bias would lead me to assume that Public Housing is more likely to be dangerous than Apartment Buildings or Private Homes, and thus more likely to have fatal shooting incidents. I mitigated this by breaking the data down by the total incidents that occurred each year to see the trends, as well as separating it by which borough the incident occurred in and thus getting a better idea of how different parts of the city have different types of incidents compared to one another.
